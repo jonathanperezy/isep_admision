@@ -91,7 +91,9 @@ class Connect():
 		return self.__connector.commit()
 
 	'''
-		Actualizar registros a través de un id, de parametro
+		Actualizar registros a través de un id, de parametro, recibe como segundo
+		parámetro un diccionario con claves-> fields y valores -> nuevo valores
+		del field o campo
 	'''
 	def write(self, id, values, tablename=None):
 		if tablename:
@@ -102,29 +104,42 @@ class Connect():
 		return self.__connector.commit()
 
 	'''
-		Cargar registros de la base de datos
+		Buscar registros
+		# parametro 1, un lista de tuplas con condicionales como por ejemplo
+		  [('id','=',1)] la cual es leida e interpretada para generar la consulta
+		  de selección básica de las cláusulas where, opcionalmente a ésta lista
+		  se le puede indicar un '|' u '&' para indicar la concatenación entre
+		  cláusulas ejemplo : [('id','=',1), '|', ('name','=','Antonio')]
+		# parametro 2, el nombre de la tabla a trabajar, si éste no es pasado se toma
+		  la última tabla que se haya indicado.
 	'''
-	def search(self, domain=[], order='', limit=0, tablename=None):
+	def search(self, domain=[], tablename=None):
 		if tablename:
 			self.table(tablename)
 
 		string = ''
 		last   = None
-		for element in domain:		
+		# Se evalúa la lista de registros
+		for element in domain:
+			# evalúamos el último elemento evaluado para determinar si hablamos
+			# de concatenación entre entre condicionales 'AND' u 'OR'
 			if (isinstance(last, tuple) and isinstance(element,tuple)) or element == '&':
 				string += ' AND '
 			elif element == '|':
 				string += ' OR '
 
+			# evaluar tupla si es pasada en la lista
 			if isinstance(element, tuple):
 				field = element[0]
 				cond  = element[1]
 				value = element[2]
-
+				# sql no admite '!=' sin embargo, éste lo pasamos a '<>' para darle
+				# soporte a esa sintaxis
 				if cond == '!=':
 					cond = '<>'
 				elif cond == 'in' or cond == 'not in':
-					value = '(%s)' % ','.join([str(v) for v in value])
+					# los casos especiales 'in o not in' son listas de registros
+					value = '(%s)' % ','.join([str(v) if self.__is_number(v) else f'"{v}"' for v in value])
 
 				if self.__is_number(value) or cond in ('in','not in'):
 					string += f'{field} {cond} {value}'
@@ -137,24 +152,40 @@ class Connect():
 			string = f'WHERE {string} '
 
 		self.cr.execute(f"SELECT * FROM {self.__table} {string}")
-		data = self.cr.fetchall()
-		
-		for l in data:
-			pass
+		return self.cr.fetchall()
 
-		return data
-
-
-fields = ('id integer PRIMARY KEY', 'name text', 'email text', 'phone text')
+# Se generar la conexion con la base de datos
 db = Connect()
-db.table('usuarios')
-db.create_table(fields)
 
+# Trabajamos con la tabla usuarios
+db.table('usuarios') 
+
+# Se generan campos
+fields = ('id integer PRIMARY KEY', 'name text', 'email text', 'phone text')
+db.create_table(fields) # creamos la tabla
+
+# crear registros
 db.create({'name':'Jonathan Pérez','email':'jonathan@gmail.com','phone':'5454544'})
+
+# actualizar registros
 db.write(1, {'name':'Miguel', 'phone':'045341444'})
 
-print( db.search( [('id','>', 0)] ) )
+# eliminar registros (requiere id)
+# db.unlink(1)
 
-#db.unlink(1)
+# buscar registros
 
+# obtener el name igual a Miguel
+domain = [('name','=','Miguel')]
+print(db.search(domain) )
+
+print("\n")
+
+# Cargar todo
+print(db.search([]))
+
+print("\n")
+
+# cargar por id
+print(db.search( [('id','=',4)] ) )
 
